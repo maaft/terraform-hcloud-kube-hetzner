@@ -128,6 +128,12 @@ variable "override_ccm" {
   description = "Link to a custom CCM deployment yaml"
 }
 
+variable "disable_private_network" {
+  type        = bool
+  default     = false
+  description = "Do not create and use Hetzner's private networks"
+}
+
 variable "extra_init_secrets" {
   description = "Any extra secrets you need to create during the init process"
   type = list(object({

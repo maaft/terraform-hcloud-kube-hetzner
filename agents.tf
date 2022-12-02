@@ -18,11 +18,11 @@ module "agents" {
   placement_group_id         = var.placement_group_disable ? 0 : hcloud_placement_group.agent[floor(each.value.index / 10)].id
   location                   = each.value.location
   server_type                = each.value.server_type
-  ipv4_subnet_id             = hcloud_network_subnet.agent[[for i, v in var.agent_nodepools : i if v.name == each.value.nodepool_name][0]].id
+  ipv4_subnet_id             = var.disable_private_network ? null : hcloud_network_subnet.agent[[for i, v in var.agent_nodepools : i if v.name == each.value.nodepool_name][0]].id
   packages_to_install        = local.packages_to_install
   dns_servers                = var.dns_servers
 
-  private_ipv4 = cidrhost(hcloud_network_subnet.agent[[for i, v in var.agent_nodepools : i if v.name == each.value.nodepool_name][0]].ip_range, each.value.index + 101)
+  private_ipv4 = var.disable_private_network ? null : cidrhost(hcloud_network_subnet.agent[[for i, v in var.agent_nodepools : i if v.name == each.value.nodepool_name][0]].ip_range, each.value.index + 101)
 
   labels = merge(local.labels, local.labels_agent_node)
 
