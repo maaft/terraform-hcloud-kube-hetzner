@@ -20,13 +20,13 @@ resource "random_string" "identity_file" {
 }
 
 resource "hcloud_server" "server" {
-  name               = local.name
-  image              = "ubuntu-20.04"
-  rescue             = "linux64"
-  server_type        = var.server_type
-  location           = var.location
-  ssh_keys           = var.ssh_keys
-  firewall_ids       = var.firewall_ids
+  name        = local.name
+  image       = "ubuntu-20.04"
+  rescue      = "linux64"
+  server_type = var.server_type
+  location    = var.location
+  ssh_keys    = var.ssh_keys
+  # firewall_ids       = var.firewall_ids
   placement_group_id = var.placement_group_id
   user_data          = data.cloudinit_config.config.rendered
 
@@ -173,11 +173,11 @@ resource "hcloud_rdns" "server" {
   dns_ptr    = format("%s.%s", local.name, var.base_domain)
 }
 
-resource "hcloud_server_network" "server" {
-  ip        = var.private_ipv4
-  server_id = hcloud_server.server.id
-  subnet_id = var.ipv4_subnet_id
-}
+# resource "hcloud_server_network" "server" {
+#   ip        = var.private_ipv4
+#   server_id = hcloud_server.server.id
+#   subnet_id = var.ipv4_subnet_id
+# }
 
 data "cloudinit_config" "config" {
   gzip          = true

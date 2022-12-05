@@ -35,11 +35,11 @@ variable "ssh_keys" {
   nullable    = true
 }
 
-variable "firewall_ids" {
-  description = "Set of firewall IDs"
-  type        = set(number)
-  nullable    = true
-}
+# variable "firewall_ids" {
+#   description = "Set of firewall IDs"
+#   type        = set(number)
+#   nullable    = true
+# }
 
 variable "placement_group_id" {
   description = "Placement group ID"
@@ -58,15 +58,15 @@ variable "location" {
   type        = string
 }
 
-variable "ipv4_subnet_id" {
-  description = "The subnet id"
-  type        = string
-}
+# variable "ipv4_subnet_id" {
+#   description = "The subnet id"
+#   type        = string
+# }
 
-variable "private_ipv4" {
-  description = "Private IP for the server"
-  type        = string
-}
+# variable "private_ipv4" {
+#   description = "Private IP for the server"
+#   type        = string
+# }
 
 variable "server_type" {
   description = "The server type"

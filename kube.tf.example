@@ -1,6 +1,8 @@
 locals {
   # Fill first and foremost your Hetzner API token, found in your project, Security, API Token, of type Read & Write.
   hcloud_token = "xxxxxxxxxxxxxxxxYYYYYYYYYYzzzzzzzzzzzzzzzzz"
+  robot_user = "xxXXxx"
+  robot_password = "xxxxxxxxxxxxxxxxYYYYYYYYYYzzzzzzzzzzzzzzzzz"
 }
 
 module "kube-hetzner" {
@@ -13,11 +15,11 @@ module "kube-hetzner" {
   # could adapt them to your needs.
 
   # * For local dev, path to the git repo
-  # source = "../../kube-hetzner/"
+  source = "../../kube-hetzner/"
   # If you want to use the latest master branch
   # source = "github.com/kube-hetzner/terraform-hcloud-kube-hetzner"
   # For normal use, this is the path to the terraform registry
-  source = "kube-hetzner/kube-hetzner/hcloud"
+  # source = "kube-hetzner/kube-hetzner/hcloud"
 
   # you can optionally specify a version number
   # version = "1.2.0"
@@ -181,7 +183,7 @@ module "kube-hetzner" {
 
   # To use local storage on the nodes, you can enable Longhorn, default is "false".
   # See a full recap on how to configure agent nodepools for longhorn here https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner/discussions/373#discussioncomment-3983159
-  # enable_longhorn = true
+  enable_longhorn = true
 
   # The file system type for Longhorn, if enabled (ext4 is the default, otherwise you can choose xfs)
   # longhorn_fstype = "xfs"
@@ -199,7 +201,7 @@ module "kube-hetzner" {
   # See the agent nodepool section for an example of how to do that.
 
   # To disable Hetzner CSI storage, you can set the following to true, default is "false".
-  # disable_hetzner_csi = true
+  disable_hetzner_csi = true
 
   # If you want to use a specific Hetzner CCM and CSI version, set them below; otherwise, leave them as-is for the latest versions.
   # hetzner_ccm_version = ""
@@ -209,18 +211,18 @@ module "kube-hetzner" {
   # kured_version = ""
 
   # If you want to use your own CCM, set a link to the deployment yaml here
-  # override_ccm = override_ccm = "https://github.com/hetznercloud/hcloud-cloud-controller-manager/releases/download/v1.13.2/ccm-networks.yaml"
+  override_ccm = override_ccm = "https://gist.githubusercontent.com/maaft/3fba8406265aed9b0713452e72bfd385/raw/b2cd9a0c00db70c3071a5a64cf7d3c97ef63112a/kube-hetzner-ccm-wg.yaml"
 
   # Any extra secrets you need to create during the init process (e.g. for your custom CCM)
-  # extra_init_secrets = [{
-  #   name      = "hetzner"
-  #   namespace = "kube-system"
-  #   literals = {
-  #     hcloud         = local.hcloud_token
-  #     robot-user     = "<robot user>"
-  #     robot-password = "<robot password>"
-  #   }
-  # }]
+  extra_init_secrets = [{
+    name      = "hetzner"
+    namespace = "kube-system"
+    literals = {
+      hcloud         = local.hcloud_token
+      robot-user     = local.robot_user
+      robot-password = local.robot_password
+    }
+  }]
 
   # If you want to enable the Nginx ingress controller (https://kubernetes.github.io/ingress-nginx/) instead of Traefik, you can set this to "true". Default is "false".
   # FOR THIS TO NOT BE IGNORED, you also need to set "enable_traefik = false".
@@ -319,7 +321,7 @@ module "kube-hetzner" {
   # block_icmp_ping_in = true
 
   # You can enable cert-manager (installed by Helm behind the scenes) with the following flag, the default is "false".
-  # enable_cert_manager = true
+  enable_cert_manager = true
 
   # IP Addresses to use for the DNS Servers, set to an empty list to use the ones provided by Hetzner, defaults to ["1.1.1.1", " 1.0.0.1", "8.8.8.8"].
   # For rancher installs, best to leave it as default.

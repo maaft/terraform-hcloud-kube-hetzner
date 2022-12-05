@@ -4,6 +4,20 @@ variable "hcloud_token" {
   sensitive   = true
 }
 
+variable "robot_user" {
+  description = "Hetzner Robot API User."
+  type        = string
+  sensitive   = true
+}
+
+
+variable "robot_password" {
+  description = "Hetzner Robot API Password."
+  type        = string
+  sensitive   = true
+}
+
+
 variable "ssh_port" {
   description = "The main SSH port to connect to the nodes."
   type        = number

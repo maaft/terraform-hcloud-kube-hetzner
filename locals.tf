@@ -61,11 +61,11 @@ locals {
   ]...)
 
   # The main network cidr that all subnets will be created upon
-  network_ipv4_cidr = "10.0.0.0/8"
+  # network_ipv4_cidr = "10.0.0.0/8"
 
   # The first two subnets are respectively the default subnet 10.0.0.0/16 use for potientially anything and 10.1.0.0/16 used for control plane nodes.
   # the rest of the subnets are for agent nodes in each nodepools.
-  network_ipv4_subnets = [for index in range(256) : cidrsubnet(local.network_ipv4_cidr, 8, index)]
+  # network_ipv4_subnets = [for index in range(256) : cidrsubnet(local.network_ipv4_cidr, 8, index)]
 
   # if we are in a single cluster config, we use the default klipper lb instead of Hetzner LB
   control_plane_count    = sum([for v in var.control_plane_nodepools : v.count])
@@ -102,153 +102,153 @@ locals {
   # internal Pod CIDR, used for the controller and currently for calico
   cluster_cidr_ipv4 = "10.42.0.0/16"
 
-  whitelisted_ips = [
-    local.network_ipv4_cidr,
-    local.hetzner_metadata_service_ipv4,
-    local.hetzner_cloud_api_ipv4,
-    "127.0.0.1/32",
-  ]
+  # whitelisted_ips = [
+  #   local.network_ipv4_cidr,
+  #   local.hetzner_metadata_service_ipv4,
+  #   local.hetzner_cloud_api_ipv4,
+  #   "127.0.0.1/32",
+  # ]
 
-  base_firewall_rules = concat([
-    # Allowing internal cluster traffic and Hetzner metadata service and cloud API IPs
-    {
-      direction  = "in"
-      protocol   = "tcp"
-      port       = "any"
-      source_ips = local.whitelisted_ips
-    },
-    {
-      direction  = "in"
-      protocol   = "udp"
-      port       = "any"
-      source_ips = local.whitelisted_ips
-    },
-    {
-      direction  = "in"
-      protocol   = "icmp"
-      source_ips = local.whitelisted_ips
-    },
+  # base_firewall_rules = concat([
+  #   # Allowing internal cluster traffic and Hetzner metadata service and cloud API IPs
+  #   {
+  #     direction  = "in"
+  #     protocol   = "tcp"
+  #     port       = "any"
+  #     source_ips = local.whitelisted_ips
+  #   },
+  #   {
+  #     direction  = "in"
+  #     protocol   = "udp"
+  #     port       = "any"
+  #     source_ips = local.whitelisted_ips
+  #   },
+  #   {
+  #     direction  = "in"
+  #     protocol   = "icmp"
+  #     source_ips = local.whitelisted_ips
+  #   },
 
-    # Allow all traffic to the kube api server
-    {
-      direction = "in"
-      protocol  = "tcp"
-      port      = "6443"
-      source_ips = [
-        "0.0.0.0/0"
-      ]
-    },
+  #   # Allow all traffic to the kube api server
+  #   {
+  #     direction = "in"
+  #     protocol  = "tcp"
+  #     port      = "6443"
+  #     source_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   },
 
-    # Allow all traffic to the ssh ports
-    {
-      direction = "in"
-      protocol  = "tcp"
-      port      = "22"
-      source_ips = [
-        "0.0.0.0/0"
-      ]
-    },
-    {
-      direction = "in"
-      protocol  = "tcp"
-      port      = var.ssh_port
-      source_ips = [
-        "0.0.0.0/0"
-      ]
-    },
+  #   # Allow all traffic to the ssh ports
+  #   {
+  #     direction = "in"
+  #     protocol  = "tcp"
+  #     port      = "22"
+  #     source_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   },
+  #   {
+  #     direction = "in"
+  #     protocol  = "tcp"
+  #     port      = var.ssh_port
+  #     source_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   },
 
-    # Allow basic out traffic
-    # ICMP to ping outside services
-    {
-      direction = "out"
-      protocol  = "icmp"
-      destination_ips = [
-        "0.0.0.0/0"
-      ]
-    },
+  #   # Allow basic out traffic
+  #   # ICMP to ping outside services
+  #   {
+  #     direction = "out"
+  #     protocol  = "icmp"
+  #     destination_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   },
 
-    # DNS
-    {
-      direction = "out"
-      protocol  = "tcp"
-      port      = "53"
-      destination_ips = [
-        "0.0.0.0/0"
-      ]
-    },
-    {
-      direction = "out"
-      protocol  = "udp"
-      port      = "53"
-      destination_ips = [
-        "0.0.0.0/0"
-      ]
-    },
+  #   # DNS
+  #   {
+  #     direction = "out"
+  #     protocol  = "tcp"
+  #     port      = "53"
+  #     destination_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   },
+  #   {
+  #     direction = "out"
+  #     protocol  = "udp"
+  #     port      = "53"
+  #     destination_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   },
 
-    # HTTP(s)
-    {
-      direction = "out"
-      protocol  = "tcp"
-      port      = "80"
-      destination_ips = [
-        "0.0.0.0/0"
-      ]
-    },
-    {
-      direction = "out"
-      protocol  = "tcp"
-      port      = "443"
-      destination_ips = [
-        "0.0.0.0/0"
-      ]
-    },
+  #   # HTTP(s)
+  #   {
+  #     direction = "out"
+  #     protocol  = "tcp"
+  #     port      = "80"
+  #     destination_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   },
+  #   {
+  #     direction = "out"
+  #     protocol  = "tcp"
+  #     port      = "443"
+  #     destination_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   },
 
-    #NTP
-    {
-      direction = "out"
-      protocol  = "udp"
-      port      = "123"
-      destination_ips = [
-        "0.0.0.0/0"
-      ]
-    }
-    ], !local.using_klipper_lb ? [] : [
-    # Allow incoming web traffic for single node clusters, because we are using k3s servicelb there,
-    # not an external load-balancer.
-    {
-      direction = "in"
-      protocol  = "tcp"
-      port      = "80"
-      source_ips = [
-        "0.0.0.0/0"
-      ]
-    },
-    {
-      direction = "in"
-      protocol  = "tcp"
-      port      = "443"
-      source_ips = [
-        "0.0.0.0/0"
-      ]
-    }
-    ], var.block_icmp_ping_in ? [] : [
-    {
-      direction = "in"
-      protocol  = "icmp"
-      source_ips = [
-        "0.0.0.0/0"
-      ]
-    }
-    ], var.cni_plugin != "cilium" ? [] : [
-    {
-      direction = "in"
-      protocol  = "tcp"
-      port      = "4244-4245"
-      source_ips = [
-        "0.0.0.0/0"
-      ]
-    }
-  ])
+  #   #NTP
+  #   {
+  #     direction = "out"
+  #     protocol  = "udp"
+  #     port      = "123"
+  #     destination_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   }
+  #   ], !local.using_klipper_lb ? [] : [
+  #   # Allow incoming web traffic for single node clusters, because we are using k3s servicelb there,
+  #   # not an external load-balancer.
+  #   {
+  #     direction = "in"
+  #     protocol  = "tcp"
+  #     port      = "80"
+  #     source_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   },
+  #   {
+  #     direction = "in"
+  #     protocol  = "tcp"
+  #     port      = "443"
+  #     source_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   }
+  #   ], var.block_icmp_ping_in ? [] : [
+  #   {
+  #     direction = "in"
+  #     protocol  = "icmp"
+  #     source_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   }
+  #   ], var.cni_plugin != "cilium" ? [] : [
+  #   {
+  #     direction = "in"
+  #     protocol  = "tcp"
+  #     port      = "4244-4245"
+  #     source_ips = [
+  #       "0.0.0.0/0"
+  #     ]
+  #   }
+  # ])
 
   labels = {
     "provisioner" = "terraform",
@@ -341,8 +341,6 @@ controller:
   service:
     annotations:
       "load-balancer.hetzner.cloud/name": "${var.cluster_name}"
-      "load-balancer.hetzner.cloud/use-private-ip": "true"
-      "load-balancer.hetzner.cloud/disable-private-ingress": "true"
       "load-balancer.hetzner.cloud/ipv6-disabled": "${var.load_balancer_disable_ipv6}"
       "load-balancer.hetzner.cloud/location": "${var.load_balancer_location}"
       "load-balancer.hetzner.cloud/type": "${var.load_balancer_type}"
@@ -358,8 +356,6 @@ service:
 %{if !local.using_klipper_lb~}
   annotations:
     "load-balancer.hetzner.cloud/name": "${var.cluster_name}"
-    "load-balancer.hetzner.cloud/use-private-ip": "true"
-    "load-balancer.hetzner.cloud/disable-private-ingress": "true"
     "load-balancer.hetzner.cloud/ipv6-disabled": "${var.load_balancer_disable_ipv6}"
     "load-balancer.hetzner.cloud/location": "${var.load_balancer_location}"
     "load-balancer.hetzner.cloud/type": "${var.load_balancer_type}"

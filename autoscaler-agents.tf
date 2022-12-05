@@ -6,11 +6,11 @@ locals {
       ca_image         = var.cluster_autoscaler_image
       ca_version       = var.cluster_autoscaler_version
       ssh_key          = local.hcloud_ssh_key_id
-      ipv4_subnet_id   = hcloud_network.k3s.id # for now we use the k3s network, as we cannot reference subnet-ids in autoscaler
-      snapshot_id      = hcloud_snapshot.autoscaler_image[0].id
-      firewall_id      = hcloud_firewall.k3s.id
-      cluster_name     = var.use_cluster_name_in_node_name ? "${var.cluster_name}-" : ""
-      node_pools       = var.autoscaler_nodepools
+      # ipv4_subnet_id   = hcloud_network.k3s.id # for now we use the k3s network, as we cannot reference subnet-ids in autoscaler
+      snapshot_id = hcloud_snapshot.autoscaler_image[0].id
+      # firewall_id  = hcloud_firewall.k3s.id
+      cluster_name = var.use_cluster_name_in_node_name ? "${var.cluster_name}-" : ""
+      node_pools   = var.autoscaler_nodepools
   })
 }
 
@@ -78,12 +78,12 @@ data "cloudinit_config" "autoscaler-config" {
         dnsServers        = var.dns_servers
         k3s_channel       = var.initial_k3s_channel
         k3s_config = yamlencode({
-          server        = "https://${var.use_control_plane_lb ? hcloud_load_balancer_network.control_plane.*.ip[0] : module.control_planes[keys(module.control_planes)[0]].private_ipv4_address}:6443"
-          token         = random_password.k3s_token.result
-          kubelet-arg   = local.kubelet_arg
-          flannel-iface = local.flannel_iface
-          node-label    = local.default_agent_labels
-          node-taint    = local.default_agent_taints
+          server      = "https://${var.use_control_plane_lb ? hcloud_load_balancer_network.control_plane.*.ip[0] : module.control_planes[keys(module.control_planes)[0]].ipv4_address}:6443"
+          token       = random_password.k3s_token.result
+          kubelet-arg = local.kubelet_arg
+          # flannel-iface = local.flannel_iface
+          node-label = local.default_agent_labels
+          node-taint = local.default_agent_taints
         })
       }
     )
