@@ -56,6 +56,7 @@ resource "null_resource" "agents" {
       token       = random_password.k3s_token.result
       kubelet-arg = local.kubelet_arg
       # flannel-iface = local.flannel_iface
+      # node-external-ip = module.agents[each.key].ipv4_address
       node-ip    = module.agents[each.key].ipv4_address
       node-label = each.value.labels
       node-taint = each.value.taints

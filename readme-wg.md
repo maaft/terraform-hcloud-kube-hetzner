@@ -44,3 +44,129 @@ cat /etc/rancher/k3s/config.yaml
 4. change `node-ip`to server IP
 5. change `node-name` to server name (as seen in `robot.hetzner.com`)
 5. install k3s `curl -sfL https://get.k3s.io | INSTALL_K3S_SKIP_SELINUX_RPM=true INSTALL_K3S_CHANNEL=stable INSTALL_K3S_EXEC=agent sh -`
+6. make sure that firewall rules are not blocking traffic
+
+# Cluster Config
+
+## cert-manager let's encrypt cert issuers
+
+Production (will rate limit if called too often)
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+  namespace: cert-manager
+spec:
+  acme:
+    # The ACME server URL
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Email address used for ACME registration
+    email: mawe.sprenger@denkweit.de
+    # Name of a secret used to store the ACME account private key
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    # Enable the HTTP-01 challenge provider
+    solvers:
+    - http01:
+        ingress:
+          class: traefik
+```
+
+Staging
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+ name: letsencrypt-staging
+ namespace: cert-manager
+spec:
+ acme:
+    # The ACME server URL
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    # Email address used for ACME registration
+    email: mawe.sprenger@denkweit.de
+    # Name of a secret used to store the ACME account private key
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    # Enable the HTTP-01 challenge provider
+    solvers:
+    - http01:
+        ingress:
+          class:  traefik
+```
+
+## Traefik
+
+Configure Namespace
+```sh
+# create namespace
+kubectl create namespace traefik
+```
+
+### Dashboard
+
+Enabled dashboard
+```terraform
+traefik_additional_options = ["--api.dashboard=true"]
+```
+
+Generate access secrets
+```sh
+# generate access credentials
+htpasswd -nB admin | tee auth-string
+
+# create secret
+kubectl create secret generic -n traefik dashboard-auth-secret --from-file=users=auth-string
+```
+
+Create Certificate
+```yaml
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: traefik-dashboard-cert
+  namespace: traefik
+spec:
+  secretName: traefik-dashboard-cert-secret
+  commonName: 'traefik.k3s1.denkweit.ai'
+  dnsNames:
+    - traefik.k3s1.denkweit.ai
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+```
+
+Deploy ingressroute for dashboard
+```yaml
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: traefik-dashboard
+  namespace: traefik
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`traefik.k3s1.denkweit.ai`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
+      services:
+        - name: api@internal
+          kind: TraefikService
+      middlewares:
+        - name: traefik-dashboard-auth # Referencing the BasicAuth middleware
+          namespace: traefik
+  tls:
+    secretName: traefik-dashboard-cert-secret
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-dashboard-auth
+  namespace: traefik
+spec:
+  basicAuth:
+    secret: dashboard-auth-secret
+```

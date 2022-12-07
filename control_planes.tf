@@ -102,11 +102,13 @@ resource "null_resource" "control_planes" {
           kubelet-arg                 = local.kubelet_arg
           kube-controller-manager-arg = local.kube_controller_manager_arg
           flannel-backend             = "wireguard-native"
-          node-ip                     = module.control_planes[each.key].ipv4_address
-          advertise-address           = module.control_planes[each.key].ipv4_address
-          node-label                  = each.value.labels
-          node-taint                  = each.value.taints
-          write-kubeconfig-mode       = "0644" # needed for import into rancher
+          # flannel-external-ip         = true
+          # node-external-ip            = module.control_planes[each.key].ipv4_address
+          node-ip               = module.control_planes[each.key].ipv4_address
+          advertise-address     = module.control_planes[each.key].ipv4_address
+          node-label            = each.value.labels
+          node-taint            = each.value.taints
+          write-kubeconfig-mode = "0644" # needed for import into rancher
         },
         lookup(local.cni_k3s_settings, var.cni_plugin, {}),
         var.use_control_plane_lb ? {

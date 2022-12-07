@@ -20,11 +20,12 @@ resource "null_resource" "first_control_plane" {
           kubelet-arg                 = local.kubelet_arg
           kube-controller-manager-arg = local.kube_controller_manager_arg
           # flannel-iface               = local.flannel_iface
-          flannel-backend   = "wireguard-native"
-          node-ip           = module.control_planes[keys(module.control_planes)[0]].ipv4_address
-          advertise-address = module.control_planes[keys(module.control_planes)[0]].ipv4_address
-          node-taint        = local.control_plane_nodes[keys(module.control_planes)[0]].taints
-          node-label        = local.control_plane_nodes[keys(module.control_planes)[0]].labels
+          flannel-backend     = "wireguard-native"
+          flannel-external-ip = true
+          node-external-ip    = module.control_planes[keys(module.control_planes)[0]].ipv4_address
+          advertise-address   = module.control_planes[keys(module.control_planes)[0]].ipv4_address
+          node-taint          = local.control_plane_nodes[keys(module.control_planes)[0]].taints
+          node-label          = local.control_plane_nodes[keys(module.control_planes)[0]].labels
         },
         lookup(local.cni_k3s_settings, var.cni_plugin, {}),
         var.use_control_plane_lb ? {
