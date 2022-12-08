@@ -55,11 +55,9 @@ resource "null_resource" "agents" {
       server      = "https://${var.use_control_plane_lb ? hcloud_load_balancer_network.control_plane.*.ip[0] : module.control_planes[keys(module.control_planes)[0]].ipv4_address}:6443"
       token       = random_password.k3s_token.result
       kubelet-arg = local.kubelet_arg
-      # flannel-iface = local.flannel_iface
-      # node-external-ip = module.agents[each.key].ipv4_address
-      node-ip    = module.agents[each.key].ipv4_address
-      node-label = each.value.labels
-      node-taint = each.value.taints
+      node-ip     = module.agents[each.key].ipv4_address
+      node-label  = each.value.labels
+      node-taint  = each.value.taints
     })
     destination = "/tmp/config.yaml"
   }
