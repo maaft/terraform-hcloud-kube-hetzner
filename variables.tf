@@ -311,7 +311,11 @@ variable "enable_longhorn" {
   default     = false
   description = "Whether of not to enable Longhorn."
 }
-
+variable "longhorn_namespace" {
+  type        = string
+  default     = "longhorn-system"
+  description = "Namespace for longhorn deployment, defaults to 'longhorn-system'"
+}
 variable "longhorn_fstype" {
   type        = string
   default     = "ext4"
@@ -452,4 +456,10 @@ variable "control_planes_custom_config" {
   type        = map(any)
   default     = {}
   description = "Custom control plane configuration e.g to allow etcd monitoring."
+}
+
+variable "k3s_registries" {
+  description = "K3S registries.yml contents. It used to access private docker registries."
+  default     = ""
+  type        = string
 }

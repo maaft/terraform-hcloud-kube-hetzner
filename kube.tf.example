@@ -139,12 +139,11 @@ module "kube-hetzner" {
   ]
   # Add custom control plane configuration options here.
   # E.g to enable monitoring for etcd, proxy etc:
-  # "etcd-expose-metrics": "true"
-  # "kube-controller-manager-arg": "bind-address=0.0.0.0"
-  # "kube-proxy-arg": "metrics-bind-address=0.0.0.0"
-  # "kube-scheduler-arg": "bind-address=0.0.0.0"
   # control_planes_custom_config = {
-  #  
+  #  etcd-expose-metrics = true,
+  #  kube-controller-manager-arg = "bind-address=0.0.0.0",
+  #  kube-proxy-arg ="metrics-bind-address=0.0.0.0",
+  #  kube-scheduler-arg = "bind-address=0.0.0.0",
   # }
 
   # * LB location and type, the latter will depend on how much load you want it to handle, see https://www.hetzner.com/cloud/load-balancer
@@ -184,6 +183,9 @@ module "kube-hetzner" {
   # To use local storage on the nodes, you can enable Longhorn, default is "false".
   # See a full recap on how to configure agent nodepools for longhorn here https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner/discussions/373#discussioncomment-3983159
   enable_longhorn = true
+
+  # The namespace for longhorn deployment, default is "longhorn-system"
+  # longhorn_namespace = "longhorn-system"
 
   # The file system type for Longhorn, if enabled (ext4 is the default, otherwise you can choose xfs)
   # longhorn_fstype = "xfs"
@@ -281,6 +283,21 @@ module "kube-hetzner" {
 
   # Whether to use the cluster name in the node name, in the form of {cluster_name}-{nodepool_name}, the default is "true".
   # use_cluster_name_in_node_name = false
+
+  # Extra k3s registries. This is useful if you have private registries and you
+  # want to pull images without additional secrets. 
+  # registries.yaml file docs: https://docs.k3s.io/installation/private-registry
+  /* k3s_registries = <<-EOT
+    mirrors:
+      hub.my_registry.com:
+        endpoint:
+          - "hub.my_registry.com"
+    configs:
+      hub.my_registry.com:
+        auth:
+          username: username
+          password: password
+  EOT */
 
   # Adding extra firewall rules, like opening a port
   # More info on the format here https://registry.terraform.io/providers/hetznercloud/hcloud/latest/docs/resources/firewall
