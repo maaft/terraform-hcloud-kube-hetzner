@@ -953,6 +953,10 @@ module "kube-hetzner" {
   # IMPORTANT: When custom networking is enabled, nodes will use the custom overlay network IPs
   # for Kubernetes cluster communication instead of Hetzner private network IPs.
   #
+  # NOTE: The Tailscale installation approach below is based on the official 
+  # terraform-hcloud-kube-hetzner-tailscale implementation which uses transactional-update
+  # for proper MicroOS compatibility.
+  #
   # See the documentation for complete setup examples: https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner/blob/master/docs/terraform.md
   #
   # custom_networking = {
@@ -962,20 +966,97 @@ module "kube-hetzner" {
   #   static_nodes = {
   #     script_content = <<-EOT
   #       #!/bin/bash
-  #       # Example: Install and configure WireGuard/Tailscale/Nebula
-  #       # Your script should configure the overlay network and output the assigned IP
+  #       set -euo pipefail
   #       
-  #       # Install your VPN solution
-  #       curl -fsSL https://tailscale.com/install.sh | sh
+  #       # Tailscale OAuth Configuration
+  #       # Replace these with your actual Tailscale OAuth credentials
+  #       CLIENT_ID="your-oauth-client-id"
+  #       CLIENT_SECRET="your-oauth-client-secret"
   #       
-  #       # Configure and start the service
-  #       tailscale up --authkey="${TAILSCALE_AUTHKEY}" --hostname="${NODE_NAME}"
+  #       # Install Tailscale using transactional-update (official approach)
+  #       echo "Installing Tailscale via transactional-update..."
   #       
-  #       # Get the assigned overlay network IP and output it as JSON
-  #       OVERLAY_IP=$(tailscale ip -4)
-  #       echo "{\"ipv4_address\": \"$OVERLAY_IP\"}" > "${OUTPUT_FILE}"
+  #       # Install Tailscale package
+  #       transactional-update pkg install -y tailscale
+  #       transactional-update apply
+  #       
+  #       # Enable and start tailscaled
+  #       systemctl enable --now tailscaled
+  #       systemctl restart NetworkManager
+  #       
+  #       # Configure IP forwarding for subnet routing
+  #       echo 'net.ipv4.ip_forward = 1' > /etc/sysctl.d/99-tailscale.conf
+  #       echo 'net.ipv6.conf.all.forwarding = 1' >> /etc/sysctl.d/99-tailscale.conf
+  #       sysctl -p /etc/sysctl.d/99-tailscale.conf
+  #       
+  #       # Get OAuth access token
+  #       echo "Getting OAuth access token..."
+  #       OAUTH_RESPONSE=$$(curl -s -X POST "https://api.tailscale.com/api/v2/oauth/token" \
+  #         -H "Content-Type: application/x-www-form-urlencoded" \
+  #         -d "client_id=$${CLIENT_ID}&client_secret=$${CLIENT_SECRET}&grant_type=client_credentials&scope=device")
+  #       
+  #       ACCESS_TOKEN=$$(echo "$$OAUTH_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+  #       
+  #       if [[ -z "$$ACCESS_TOKEN" ]]; then
+  #         echo "Failed to get OAuth access token: $$OAUTH_RESPONSE" >&2
+  #         exit 1
+  #       fi
+  #       
+  #       # Create device auth key using OAuth token
+  #       echo "Creating device auth key..."
+  #       AUTH_KEY_RESPONSE=$$(curl -s -X POST "https://api.tailscale.com/api/v2/tailnet/-/keys" \
+  #         -H "Authorization: Bearer $${ACCESS_TOKEN}" \
+  #         -H "Content-Type: application/json" \
+  #         -d '{
+  #           "capabilities": {
+  #             "devices": {
+  #               "create": {
+  #                 "reusable": false,
+  #                 "ephemeral": false,
+  #                 "preauthorized": true,
+  #                 "tags": ["tag:k8s", "tag:'"$${NODE_ROLE}"'"]
+  #               }
+  #             }
+  #           },
+  #           "expirySeconds": 3600,
+  #           "description": "Temporary key for '"$${NODE_NAME}"'"
+  #         }')
+  #       
+  #       AUTH_KEY=$$(echo "$$AUTH_KEY_RESPONSE" | grep -o '"key":"[^"]*"' | cut -d'"' -f4)
+  #       
+  #       if [[ -z "$$AUTH_KEY" ]]; then
+  #         echo "Failed to create auth key: $$AUTH_KEY_RESPONSE" >&2
+  #         exit 1
+  #       fi
+  #       
+  #       # Configure and start Tailscale with the temporary auth key
+  #       echo "Connecting to Tailscale..."
+  #       tailscale up --authkey="$${AUTH_KEY}" \
+  #         --hostname="$${NODE_NAME}" \
+  #         --accept-routes \
+  #         --accept-dns=false
+  #       
+  #       # Wait for IP assignment with timeout
+  #       echo "Waiting for IP assignment..."
+  #       for i in {1..30}; do
+  #         OVERLAY_IP=$$(tailscale ip -4 2>/dev/null || echo "")
+  #         if [[ -n "$$OVERLAY_IP" ]]; then
+  #           echo "Got Tailscale IP: $$OVERLAY_IP"
+  #           break
+  #         fi
+  #         sleep 2
+  #       done
+  #       
+  #       if [[ -z "$$OVERLAY_IP" ]]; then
+  #         echo "Failed to get Tailscale IP after 60 seconds" >&2
+  #         exit 1
+  #       fi
+  #       
+  #       # Output the assigned IP as JSON
+  #       echo "{\"node_ip\": \"$$OVERLAY_IP\", \"status\": \"success\"}" > "$${OUTPUT_FILE}"
+  #       echo "Successfully configured Tailscale networking"
   #     EOT
-  #     
+  #
   #     interpreter = "/bin/bash"
   #     timeout_seconds = 300
   #     max_retries = 3
@@ -988,13 +1069,97 @@ module "kube-hetzner" {
   #     enabled = true
   #     script_content = <<-EOT
   #       #!/bin/bash
-  #       # Same type of script for autoscaler nodes
-  #       curl -fsSL https://tailscale.com/install.sh | sh
-  #       tailscale up --authkey="${TAILSCALE_AUTHKEY}" --hostname="${NODE_NAME}"
-  #       OVERLAY_IP=$(tailscale ip -4)
-  #       echo "{\"ipv4_address\": \"$OVERLAY_IP\"}" > "${OUTPUT_FILE}"
+  #       set -euo pipefail
+  #       
+  #       # Tailscale OAuth Configuration
+  #       # Replace these with your actual Tailscale OAuth credentials
+  #       CLIENT_ID="your-oauth-client-id"
+  #       CLIENT_SECRET="your-oauth-client-secret"
+  #       
+  #       # Install Tailscale using transactional-update (official approach)
+  #       echo "Installing Tailscale via transactional-update..."
+  #       
+  #       # Install Tailscale package
+  #       transactional-update pkg install -y tailscale
+  #       transactional-update apply
+  #       
+  #       # Enable and start tailscaled
+  #       systemctl enable --now tailscaled
+  #       systemctl restart NetworkManager
+  #       
+  #       # Configure IP forwarding for subnet routing
+  #       echo 'net.ipv4.ip_forward = 1' > /etc/sysctl.d/99-tailscale.conf
+  #       echo 'net.ipv6.conf.all.forwarding = 1' >> /etc/sysctl.d/99-tailscale.conf
+  #       sysctl -p /etc/sysctl.d/99-tailscale.conf
+  #       
+  #       # Get OAuth access token
+  #       echo "Getting OAuth access token..."
+  #       OAUTH_RESPONSE=$$(curl -s -X POST "https://api.tailscale.com/api/v2/oauth/token" \
+  #         -H "Content-Type: application/x-www-form-urlencoded" \
+  #         -d "client_id=$${CLIENT_ID}&client_secret=$${CLIENT_SECRET}&grant_type=client_credentials&scope=device")
+  #       
+  #       ACCESS_TOKEN=$$(echo "$$OAUTH_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+  #       
+  #       if [[ -z "$$ACCESS_TOKEN" ]]; then
+  #         echo "Failed to get OAuth access token: $$OAUTH_RESPONSE" >&2
+  #         exit 1
+  #       fi
+  #       
+  #       # Create device auth key using OAuth token for autoscaler node
+  #       echo "Creating device auth key for autoscaler node..."
+  #       AUTH_KEY_RESPONSE=$$(curl -s -X POST "https://api.tailscale.com/api/v2/tailnet/-/keys" \
+  #         -H "Authorization: Bearer $${ACCESS_TOKEN}" \
+  #         -H "Content-Type: application/json" \
+  #         -d '{
+  #           "capabilities": {
+  #             "devices": {
+  #               "create": {
+  #                 "reusable": false,
+  #                 "ephemeral": true,
+  #                 "preauthorized": true,
+  #                 "tags": ["tag:k8s", "tag:autoscaler"]
+  #               }
+  #             }
+  #           },
+  #           "expirySeconds": 1800,
+  #           "description": "Temporary key for autoscaler node '"$${NODE_NAME}"'"
+  #         }')
+  #       
+  #       AUTH_KEY=$$(echo "$$AUTH_KEY_RESPONSE" | grep -o '"key":"[^"]*"' | cut -d'"' -f4)
+  #       
+  #       if [[ -z "$$AUTH_KEY" ]]; then
+  #         echo "Failed to create auth key: $$AUTH_KEY_RESPONSE" >&2
+  #         exit 1
+  #       fi
+  #       
+  #       # Configure and start Tailscale with the temporary auth key
+  #       echo "Connecting autoscaler node to Tailscale..."
+  #       tailscale up --authkey="$${AUTH_KEY}" \
+  #         --hostname="$${NODE_NAME}" \
+  #         --accept-routes \
+  #         --accept-dns=false
+  #       
+  #       # Wait for IP assignment with timeout
+  #       echo "Waiting for IP assignment..."
+  #       for i in {1..30}; do
+  #         OVERLAY_IP=$$(tailscale ip -4 2>/dev/null || echo "")
+  #         if [[ -n "$$OVERLAY_IP" ]]; then
+  #           echo "Got Tailscale IP: $$OVERLAY_IP"
+  #           break
+  #         fi
+  #         sleep 2
+  #       done
+  #       
+  #       if [[ -z "$$OVERLAY_IP" ]]; then
+  #         echo "Failed to get Tailscale IP after 60 seconds" >&2
+  #         exit 1
+  #       fi
+  #       
+  #       # Output the assigned IP as JSON
+  #       echo "{\"node_ip\": \"$$OVERLAY_IP\", \"status\": \"success\"}" > "$${OUTPUT_FILE}"
+  #       echo "Successfully configured Tailscale networking for autoscaler node"
   #     EOT
-  #     
+  #
   #     timeout_seconds = 300
   #     max_retries = 3
   #     retry_delay_seconds = 30

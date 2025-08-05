@@ -334,6 +334,11 @@ resource "terraform_data" "custom_networking_setup" {
     agent_identity = local.ssh_agent_identity
     host           = hcloud_server.server.ipv4_address
     port           = var.ssh_port
+
+    bastion_host        = var.ssh_bastion.bastion_host
+    bastion_port        = var.ssh_bastion.bastion_port
+    bastion_user        = var.ssh_bastion.bastion_user
+    bastion_private_key = var.ssh_bastion.bastion_private_key
   }
 
   # Execute custom networking script
@@ -342,28 +347,45 @@ resource "terraform_data" "custom_networking_setup" {
       "echo '${base64encode(var.custom_networking_script)}' | base64 -d > /tmp/custom_networking_setup.sh",
       "chmod +x /tmp/custom_networking_setup.sh",
       "/tmp/custom_networking_setup.sh",
-      "rm -f /tmp/custom_networking_setup.sh"
+      # "rm -f /tmp/custom_networking_setup.sh"
     ]
   }
 
   depends_on = [hcloud_server.server]
 }
 
-# Get custom networking IP via SSH resource
-resource "ssh_resource" "custom_network_ip" {
+# Get custom networking IP via terraform_data (simpler than null_resource for this use case)
+resource "terraform_data" "custom_network_ip" {
   count = var.custom_networking_enabled ? 1 : 0
 
-  triggers = {
+  triggers_replace = {
     server = hcloud_server.server.id
     script = var.custom_networking_script
   }
 
-  host        = hcloud_server.server.ipv4_address
-  user        = "root"
-  private_key = var.ssh_private_key
-  port        = var.ssh_port
+  connection {
+    user           = "root"
+    private_key    = var.ssh_private_key
+    agent_identity = local.ssh_agent_identity
+    host           = hcloud_server.server.ipv4_address
+    port           = var.ssh_port
 
-  commands = ["cat ${var.custom_networking_output_file} | python3 -c 'import json,sys; print(json.load(sys.stdin).get(\"node_ip\", \"\"))'"]
+    bastion_host        = var.ssh_bastion.bastion_host
+    bastion_port        = var.ssh_bastion.bastion_port
+    bastion_user        = var.ssh_bastion.bastion_user
+    bastion_private_key = var.ssh_bastion.bastion_private_key
+  }
+
+  # Create temp directory and get the custom IP
+  provisioner "local-exec" {
+    command = <<-EOT
+      mkdir -p /tmp/terraform-custom-ips
+      # Use SSH to get the custom IP and store it
+      IP=$(ssh ${local.ssh_args} -o ConnectTimeout=10 -o BatchMode=yes ${var.ssh_private_key != null ? "-i ${var.ssh_private_key}" : ""} ${local.ssh_proxy_jump} -p ${var.ssh_port} root@${hcloud_server.server.ipv4_address} \
+        "if [ -f '${var.custom_networking_output_file}' ]; then cat '${var.custom_networking_output_file}' | python3 -c 'import json,sys; print(json.load(sys.stdin).get(\"node_ip\", \"\"))' 2>/dev/null; else echo ''; fi" 2>/dev/null || echo "")
+      echo "$IP" > /tmp/terraform-custom-ips/${hcloud_server.server.id}
+    EOT
+  }
 
   depends_on = [terraform_data.custom_networking_setup]
 }
