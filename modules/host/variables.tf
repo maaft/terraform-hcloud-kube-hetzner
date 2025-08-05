@@ -172,3 +172,21 @@ variable "ssh_bastion" {
     bastion_private_key = string
   })
 }
+
+variable "custom_networking_enabled" {
+  description = "Whether custom networking is enabled for this node"
+  type        = bool
+  default     = false
+}
+
+variable "custom_networking_script" {
+  description = "Fully rendered custom networking setup script"
+  type        = string
+  default     = ""
+}
+
+variable "custom_networking_output_file" {
+  description = "Path where the custom networking script will write its JSON output"
+  type        = string
+  default     = "/tmp/custom-networking.json"
+}

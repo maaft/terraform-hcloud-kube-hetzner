@@ -42,6 +42,32 @@ module "control_planes" {
 
   automatically_upgrade_os = var.automatically_upgrade_os
 
+  # Custom networking configuration
+  custom_networking_enabled = var.custom_networking.enabled && var.custom_networking.static_nodes.script_content != ""
+  custom_networking_script = var.custom_networking.enabled && var.custom_networking.static_nodes.script_content != "" ? templatefile(
+    "${path.module}/templates/custom-networking-wrapper.sh.tpl",
+    merge(
+      var.custom_networking.static_nodes,
+      {
+        # Per-node context
+        node_name     = "${var.use_cluster_name_in_node_name ? "${var.cluster_name}-" : ""}${each.value.nodepool_name}-${each.value.index}"
+        node_index    = each.value.index
+        nodepool_name = each.value.nodepool_name
+        node_role     = "control-plane"
+        location      = each.value.location
+        server_type   = each.value.server_type
+        # Environment variables from parent context
+        cluster_name          = var.cluster_name
+        hcloud_token          = var.hcloud_token
+        network_region        = var.network_region
+        original_network_cidr = var.network_ipv4_cidr
+        cluster_ipv4_cidr     = var.cluster_ipv4_cidr
+        service_ipv4_cidr     = var.service_ipv4_cidr
+      }
+    )
+  ) : ""
+  custom_networking_output_file = var.custom_networking.static_nodes.output_file
+
   depends_on = [
     hcloud_network_subnet.control_plane,
     hcloud_placement_group.control_plane,
@@ -106,11 +132,8 @@ locals {
   k3s-config = { for k, v in local.control_plane_nodes : k => merge(
     {
       node-name = module.control_planes[k].name
-      server = length(module.control_planes) == 1 ? null : "https://${
-        var.use_control_plane_lb ? hcloud_load_balancer_network.control_plane.*.ip[0] :
-        module.control_planes[k].private_ipv4_address == module.control_planes[keys(module.control_planes)[0]].private_ipv4_address ?
-        module.control_planes[keys(module.control_planes)[1]].private_ipv4_address :
-      module.control_planes[keys(module.control_planes)[0]].private_ipv4_address}:6443"
+      # Use custom networking IPs when available  
+      server                   = length(module.control_planes) == 1 ? null : "https://${local.first_control_plane_k3s_ip}:6443"
       token                    = local.k3s_token
       disable-cloud-controller = true
       disable-kube-proxy       = var.disable_kube_proxy
@@ -120,15 +143,19 @@ locals {
       kube-apiserver-arg          = local.kube_apiserver_arg
       kube-controller-manager-arg = local.kube_controller_manager_arg
       flannel-iface               = local.flannel_iface
-      node-ip                     = module.control_planes[k].private_ipv4_address
-      advertise-address           = module.control_planes[k].private_ipv4_address
-      node-label                  = v.labels
-      node-taint                  = v.taints
-      selinux                     = var.disable_selinux ? false : (v.selinux == true ? true : false)
-      cluster-cidr                = var.cluster_ipv4_cidr
-      service-cidr                = var.service_ipv4_cidr
-      cluster-dns                 = local.cluster_dns_ipv4
-      write-kubeconfig-mode       = "0644" # needed for import into rancher
+      node-ip = (var.custom_networking.enabled && module.control_planes[k].custom_ipv4_address != "" ?
+        module.control_planes[k].custom_ipv4_address :
+      module.control_planes[k].private_ipv4_address)
+      advertise-address = (var.custom_networking.enabled && module.control_planes[k].custom_ipv4_address != "" ?
+        module.control_planes[k].custom_ipv4_address :
+      module.control_planes[k].private_ipv4_address)
+      node-label            = v.labels
+      node-taint            = v.taints
+      selinux               = var.disable_selinux ? false : (v.selinux == true ? true : false)
+      cluster-cidr          = var.cluster_ipv4_cidr
+      service-cidr          = var.service_ipv4_cidr
+      cluster-dns           = local.cluster_dns_ipv4
+      write-kubeconfig-mode = "0644" # needed for import into rancher
     },
     lookup(local.cni_k3s_settings, var.cni_plugin, {}),
     var.use_control_plane_lb ? {

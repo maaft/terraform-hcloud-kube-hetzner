@@ -141,7 +141,7 @@ variable "nat_router_subnet_index" {
   type        = number
   default     = 200
   description = "Subnet index (0-255) for NAT router. Default 200 is safe for most deployments. Must not conflict with control plane (counting down from 255) or agent pools (counting up from 0)."
-  
+
   validation {
     condition     = var.nat_router_subnet_index >= 0 && var.nat_router_subnet_index <= 255
     error_message = "NAT router subnet index must be between 0 and 255."
@@ -1238,4 +1238,67 @@ variable "hetzner_ccm_values" {
   type        = string
   default     = ""
   description = "Additional helm values file to pass to Hetzner Controller Manager as 'valuesContent' at the HelmChart."
+}
+
+variable "custom_networking" {
+  description = "Configuration for custom networking overlay"
+  type = object({
+    enabled = bool
+
+    # Configuration for static nodes (control planes, agent pools)
+    static_nodes = object({
+      script_content      = string
+      interpreter         = optional(string, "/bin/bash")
+      timeout_seconds     = optional(number, 300)
+      max_retries         = optional(number, 3)
+      retry_delay_seconds = optional(number, 30)
+      output_file         = optional(string, "/tmp/custom-networking.json")
+      input_parameters    = optional(map(string), {})
+      required_outputs    = optional(list(string), ["node_ip", "status"])
+    })
+
+    # Configuration for autoscaler nodes
+    autoscaler_nodes = object({
+      enabled        = bool
+      script_content = string
+      output_file    = optional(string, "/tmp/custom-networking-autoscaler.json")
+    })
+  })
+
+  default = {
+    enabled = false
+    static_nodes = {
+      script_content      = ""
+      interpreter         = "/bin/bash"
+      timeout_seconds     = 300
+      max_retries         = 3
+      retry_delay_seconds = 30
+      output_file         = "/tmp/custom-networking.json"
+      input_parameters    = {}
+      required_outputs    = ["node_ip", "status"]
+    }
+    autoscaler_nodes = {
+      enabled        = false
+      script_content = ""
+      output_file    = "/tmp/custom-networking-autoscaler.json"
+    }
+  }
+
+  validation {
+    condition = !var.custom_networking.enabled || (
+      var.custom_networking.static_nodes.script_content != "" ||
+      (var.custom_networking.autoscaler_nodes.enabled && var.custom_networking.autoscaler_nodes.script_content != "")
+    )
+    error_message = "When custom networking is enabled, at least one of static_nodes.script_content or autoscaler_nodes.script_content must be provided."
+  }
+
+  validation {
+    condition     = !var.custom_networking.enabled || var.custom_networking.static_nodes.timeout_seconds > 0
+    error_message = "Timeout seconds must be greater than 0."
+  }
+
+  validation {
+    condition     = !var.custom_networking.enabled || var.custom_networking.static_nodes.max_retries > 0
+    error_message = "Max retries must be greater than 0."
+  }
 }

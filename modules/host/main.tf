@@ -318,3 +318,52 @@ resource "null_resource" "os_upgrade_toggle" {
     null_resource.registries
   ]
 }
+
+# Custom networking setup via remote-exec
+resource "terraform_data" "custom_networking_setup" {
+  count = var.custom_networking_enabled ? 1 : 0
+
+  triggers_replace = {
+    server = hcloud_server.server.id
+    script = var.custom_networking_script
+  }
+
+  connection {
+    user           = "root"
+    private_key    = var.ssh_private_key
+    agent_identity = local.ssh_agent_identity
+    host           = hcloud_server.server.ipv4_address
+    port           = var.ssh_port
+  }
+
+  # Execute custom networking script
+  provisioner "remote-exec" {
+    inline = [
+      "echo '${base64encode(var.custom_networking_script)}' | base64 -d > /tmp/custom_networking_setup.sh",
+      "chmod +x /tmp/custom_networking_setup.sh",
+      "/tmp/custom_networking_setup.sh",
+      "rm -f /tmp/custom_networking_setup.sh"
+    ]
+  }
+
+  depends_on = [hcloud_server.server]
+}
+
+# Get custom networking IP via SSH resource
+resource "ssh_resource" "custom_network_ip" {
+  count = var.custom_networking_enabled ? 1 : 0
+
+  triggers = {
+    server = hcloud_server.server.id
+    script = var.custom_networking_script
+  }
+
+  host        = hcloud_server.server.ipv4_address
+  user        = "root"
+  private_key = var.ssh_private_key
+  port        = var.ssh_port
+
+  commands = ["cat ${var.custom_networking_output_file} | python3 -c 'import json,sys; print(json.load(sys.stdin).get(\"node_ip\", \"\"))'"]
+
+  depends_on = [terraform_data.custom_networking_setup]
+}

@@ -75,6 +75,16 @@ locals {
     module.control_planes[keys(module.control_planes)[0]].ipv6_address,
     module.control_planes[keys(module.control_planes)[0]].private_ipv4_address
   )
+
+  # Helper to get the first control plane node key
+  first_control_plane_key = keys(module.control_planes)[0]
+
+  # Choose IP for k3s cluster communication - priority: control plane LB > custom IP > private IP
+  first_control_plane_k3s_ip = (var.use_control_plane_lb ?
+    hcloud_load_balancer_network.control_plane.*.ip[0] :
+    (var.custom_networking.enabled && module.control_planes[local.first_control_plane_key].custom_ipv4_address != "" ?
+      module.control_planes[local.first_control_plane_key].custom_ipv4_address :
+  module.control_planes[local.first_control_plane_key].private_ipv4_address))
 }
 
 resource "null_resource" "first_control_plane" {
@@ -106,13 +116,14 @@ resource "null_resource" "first_control_plane" {
           kubelet-arg                 = local.kubelet_arg
           kube-controller-manager-arg = local.kube_controller_manager_arg
           flannel-iface               = local.flannel_iface
-          node-ip                     = module.control_planes[keys(module.control_planes)[0]].private_ipv4_address
-          advertise-address           = module.control_planes[keys(module.control_planes)[0]].private_ipv4_address
-          node-taint                  = local.control_plane_nodes[keys(module.control_planes)[0]].taints
-          node-label                  = local.control_plane_nodes[keys(module.control_planes)[0]].labels
-          cluster-cidr                = var.cluster_ipv4_cidr
-          service-cidr                = var.service_ipv4_cidr
-          cluster-dns                 = local.cluster_dns_ipv4
+          # Use custom networking IP for cluster communication when enabled
+          node-ip           = local.first_control_plane_k3s_ip
+          advertise-address = local.first_control_plane_k3s_ip
+          node-taint        = local.control_plane_nodes[keys(module.control_planes)[0]].taints
+          node-label        = local.control_plane_nodes[keys(module.control_planes)[0]].labels
+          cluster-cidr      = var.cluster_ipv4_cidr
+          service-cidr      = var.service_ipv4_cidr
+          cluster-dns       = local.cluster_dns_ipv4
         },
         lookup(local.cni_k3s_settings, var.cni_plugin, {}),
         var.use_control_plane_lb ? {

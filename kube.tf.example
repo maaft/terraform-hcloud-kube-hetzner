@@ -945,6 +945,63 @@ module "kube-hetzner" {
   # (Can be used by another rancher2 provider to continue setup of rancher outside this module.)
   # rancher_bootstrap_password = ""
 
+  ## Custom Networking Configuration (BETA)
+  #
+  # Enables custom networking overlays like WireGuard, Tailscale, Nebula, etc.
+  # This feature allows you to replace Hetzner's default private networking with your own solution.
+  #
+  # IMPORTANT: When custom networking is enabled, nodes will use the custom overlay network IPs
+  # for Kubernetes cluster communication instead of Hetzner private network IPs.
+  #
+  # See the documentation for complete setup examples: https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner/blob/master/docs/terraform.md
+  #
+  # custom_networking = {
+  #   enabled = true
+  #
+  #   # Configuration for static nodes (control planes, agent pools)
+  #   static_nodes = {
+  #     script_content = <<-EOT
+  #       #!/bin/bash
+  #       # Example: Install and configure WireGuard/Tailscale/Nebula
+  #       # Your script should configure the overlay network and output the assigned IP
+  #       
+  #       # Install your VPN solution
+  #       curl -fsSL https://tailscale.com/install.sh | sh
+  #       
+  #       # Configure and start the service
+  #       tailscale up --authkey="${TAILSCALE_AUTHKEY}" --hostname="${NODE_NAME}"
+  #       
+  #       # Get the assigned overlay network IP and output it as JSON
+  #       OVERLAY_IP=$(tailscale ip -4)
+  #       echo "{\"ipv4_address\": \"$OVERLAY_IP\"}" > "${OUTPUT_FILE}"
+  #     EOT
+  #     
+  #     interpreter = "/bin/bash"
+  #     timeout_seconds = 300
+  #     max_retries = 3
+  #     retry_delay_seconds = 30
+  #     output_file = "/tmp/custom-networking.json"
+  #   }
+  #
+  #   # Configuration for autoscaler nodes (optional, defaults to static_nodes config)
+  #   autoscaler_nodes = {
+  #     enabled = true
+  #     script_content = <<-EOT
+  #       #!/bin/bash
+  #       # Same type of script for autoscaler nodes
+  #       curl -fsSL https://tailscale.com/install.sh | sh
+  #       tailscale up --authkey="${TAILSCALE_AUTHKEY}" --hostname="${NODE_NAME}"
+  #       OVERLAY_IP=$(tailscale ip -4)
+  #       echo "{\"ipv4_address\": \"$OVERLAY_IP\"}" > "${OUTPUT_FILE}"
+  #     EOT
+  #     
+  #     timeout_seconds = 300
+  #     max_retries = 3
+  #     retry_delay_seconds = 30
+  #     output_file = "/tmp/custom-networking-autoscaler.json"
+  #   }
+  # }
+
   # Separate from the above Rancher config (only use one or the other). You can import this cluster directly on an
   # an already active Rancher install. By clicking "import cluster" choosing "generic", giving it a name and pasting
   # the cluster registration url below. However, you can also ignore that and apply the url via kubectl as instructed

@@ -1207,4 +1207,7 @@ cloudinit_runcmd_common = <<EOT
 
 EOT
 
+# Custom networking configuration
+use_custom_networking = var.custom_networking.enabled
+
 }

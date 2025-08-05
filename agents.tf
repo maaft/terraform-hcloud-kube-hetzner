@@ -33,11 +33,40 @@ module "agents" {
   disable_ipv6                 = each.value.disable_ipv6
   ssh_bastion                  = local.ssh_bastion
   network_id                   = data.hcloud_network.k3s.id
-  private_ipv4                 = cidrhost(hcloud_network_subnet.agent[[for i, v in var.agent_nodepools : i if v.name == each.value.nodepool_name][0]].ip_range, each.value.index + 101)
+
+  # We leave some room so 100 eventual Hetzner LBs that can be created perfectly safely
+  # It leaves the subnet with 254 x 254 - 100 = 64416 IPs to use, so probably enough.
+  private_ipv4 = cidrhost(hcloud_network_subnet.agent[[for i, v in var.agent_nodepools : i if v.name == each.value.nodepool_name][0]].ip_range, each.value.index + 101)
 
   labels = merge(local.labels, local.labels_agent_node)
 
   automatically_upgrade_os = var.automatically_upgrade_os
+
+  # Custom networking configuration
+  custom_networking_enabled = var.custom_networking.enabled && var.custom_networking.static_nodes.script_content != ""
+  custom_networking_script = var.custom_networking.enabled && var.custom_networking.static_nodes.script_content != "" ? templatefile(
+    "${path.module}/templates/custom-networking-wrapper.sh.tpl",
+    merge(
+      var.custom_networking.static_nodes,
+      {
+        # Per-node context
+        node_name     = "${var.use_cluster_name_in_node_name ? "${var.cluster_name}-" : ""}${each.value.nodepool_name}-${each.value.index}"
+        node_index    = each.value.index
+        nodepool_name = each.value.nodepool_name
+        node_role     = "agent"
+        location      = each.value.location
+        server_type   = each.value.server_type
+        # Environment variables from parent context
+        cluster_name          = var.cluster_name
+        hcloud_token          = var.hcloud_token
+        network_region        = var.network_region
+        original_network_cidr = var.network_ipv4_cidr
+        cluster_ipv4_cidr     = var.cluster_ipv4_cidr
+        service_ipv4_cidr     = var.service_ipv4_cidr
+      }
+    )
+  ) : ""
+  custom_networking_output_file = var.custom_networking.static_nodes.output_file
 
   depends_on = [
     hcloud_network_subnet.agent,
@@ -51,8 +80,9 @@ locals {
   k3s-agent-config = { for k, v in local.agent_nodes : k => merge(
     {
       node-name = module.agents[k].name
-      server    = "https://${var.use_control_plane_lb ? hcloud_load_balancer_network.control_plane.*.ip[0] : module.control_planes[keys(module.control_planes)[0]].private_ipv4_address}:6443"
-      token     = local.k3s_token
+      # Use custom networking IPs when available
+      server = "https://${local.first_control_plane_k3s_ip}:6443"
+      token  = local.k3s_token
       # Kubelet arg precedence (last wins): local.kubelet_arg > v.kubelet_args > k3s_global_kubelet_args > k3s_agent_kubelet_args
       kubelet-arg = concat(
         local.kubelet_arg,
@@ -61,9 +91,11 @@ locals {
         var.k3s_agent_kubelet_args
       )
       flannel-iface = local.flannel_iface
-      node-ip       = module.agents[k].private_ipv4_address
-      node-label    = v.labels
-      node-taint    = v.taints
+      node-ip = (var.custom_networking.enabled && module.agents[k].custom_ipv4_address != "" ?
+        module.agents[k].custom_ipv4_address :
+      module.agents[k].private_ipv4_address)
+      node-label = v.labels
+      node-taint = v.taints
     },
     var.agent_nodes_custom_config,
     local.prefer_bundled_bin_config,

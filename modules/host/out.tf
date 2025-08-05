@@ -27,3 +27,8 @@ output "domain_assignments" {
     }
   ]
 }
+
+output "custom_ipv4_address" {
+  description = "The custom networking IP address of the server"
+  value       = var.custom_networking_enabled ? try(trimspace(ssh_resource.custom_network_ip[0].result), "") : ""
+}

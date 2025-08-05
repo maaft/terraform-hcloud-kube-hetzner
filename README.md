@@ -21,6 +21,7 @@
 - [Getting Started](#getting-started)
 - [Usage](#usage)
 - [CNI](#cni)
+- [Custom Networking](#custom-networking)
 - [Scaling Nodes](#scaling-nodes)
 - [Autoscaling Node Pools](#autoscaling-node-pools)
 - [High Availability](#high-availability)
@@ -82,6 +83,7 @@ To achieve this, we built up on the shoulders of giants by choosing [openSUSE Mi
 - [x] Proper IPv6 support for inbound/outbound traffic.
 - [x] **Flexible configuration options** via variables and an extra Kustomization option.
 - [x] Ability to add Hetzner "Robot" / Dedicated servers as nodes
+- [x] **Custom networking overlay support** for WireGuard, Tailscale, Nebula, and other VPN solutions
 
 _It uses Terraform to deploy as it's easy to use, and Hetzner has a great [Hetzner Terraform Provider](https://registry.terraform.io/providers/hetznercloud/hcloud/latest/docs)._
 
@@ -203,6 +205,110 @@ Cilium supports full kube-proxy replacement. Cilium runs by default in hybrid ku
 
 It is also possible to enable Hubble using `cilium_hubble_enabled = true`. In order to access the Hubble UI, you need to port-forward the Hubble UI service to your local machine. By default, you can do this by running `kubectl port-forward -n kube-system service/hubble-ui 12000:80` and then opening `http://localhost:12000` in your browser.
 However, it is recommended to use the [Cilium CLI](https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/#install-the-cilium-cli) and [Hubble Client](https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/#install-the-cilium-cli) and running the `cilium hubble ui` command.
+
+## Custom Networking
+
+Kube-Hetzner supports replacing Hetzner's default private networking with custom overlay networks like **WireGuard**, **Tailscale**, **Nebula**, and other VPN solutions. This allows you to:
+
+- Use your existing corporate VPN infrastructure
+- Create secure mesh networks spanning multiple cloud providers
+- Implement zero-trust networking principles
+- Leverage advanced VPN features like traffic shaping and fine-grained access controls
+
+### Key Features
+
+- **Dual-Script Architecture**: Separate configurations for static nodes (control planes, agent pools) and autoscaler nodes
+- **Automatic Failback**: Falls back to Hetzner private networking if custom networking setup fails
+- **Complete Integration**: Kubernetes cluster communication automatically uses custom overlay IPs
+- **Flexible Configuration**: Support for any script-based VPN solution
+
+### Basic Configuration
+
+To enable custom networking, add the `custom_networking` block to your `kube.tf`:
+
+```hcl
+custom_networking = {
+  enabled = true
+
+  static_nodes = {
+    script_content = <<-EOT
+      #!/bin/bash
+      # Install and configure your VPN solution
+      curl -fsSL https://tailscale.com/install.sh | sh
+      tailscale up --authkey="${TAILSCALE_AUTHKEY}" --hostname="${NODE_NAME}"
+      
+      # Output the assigned IP as JSON
+      OVERLAY_IP=$(tailscale ip -4)
+      echo "{\"ipv4_address\": \"$OVERLAY_IP\"}" > "${OUTPUT_FILE}"
+    EOT
+  }
+}
+```
+
+### Available Environment Variables
+
+Your custom networking scripts have access to these environment variables:
+
+- `CLUSTER_NAME` - The name of the Kubernetes cluster
+- `NODE_NAME` - The name of the current node
+- `NODE_INDEX` - The index of the node within its nodepool
+- `NODEPOOL_NAME` - The name of the nodepool this node belongs to
+- `NODE_ROLE` - Either "control-plane" or "agent"
+- `HCLOUD_TOKEN` - Your Hetzner Cloud API token
+- `NETWORK_REGION` - The Hetzner network region
+- `LOCATION` - The Hetzner datacenter location
+- `SERVER_TYPE` - The Hetzner server type
+- `OUTPUT_FILE` - Path where your script should write the JSON output
+
+### Output Format
+
+Your script must write a JSON file to `$OUTPUT_FILE` containing the assigned overlay network IP:
+
+```json
+{
+  "ipv4_address": "100.64.0.1"
+}
+```
+
+### Advanced Configuration
+
+For production deployments, you can configure error handling, timeouts, and separate configurations for autoscaler nodes:
+
+```hcl
+custom_networking = {
+  enabled = true
+
+  static_nodes = {
+    script_content      = file("./scripts/setup-wireguard.sh")
+    interpreter         = "/bin/bash"
+    timeout_seconds     = 300
+    max_retries         = 3
+    retry_delay_seconds = 30
+    output_file         = "/tmp/custom-networking.json"
+  }
+
+  autoscaler_nodes = {
+    enabled             = true
+    script_content      = file("./scripts/setup-wireguard-autoscaler.sh")
+    timeout_seconds     = 180
+    max_retries         = 2
+    retry_delay_seconds = 15
+    output_file         = "/tmp/autoscaler-networking.json"
+  }
+}
+```
+
+### Supported VPN Solutions
+
+The custom networking feature has been tested with:
+
+- **Tailscale**: Mesh VPN with automatic NAT traversal
+- **WireGuard**: High-performance VPN protocol
+- **Nebula**: Scalable overlay networking
+- **ZeroTier**: Global area network platform
+- **Custom solutions**: Any script-based VPN setup
+
+For detailed setup guides and troubleshooting, see the [terraform.md documentation](https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner/blob/master/docs/terraform.md).
 
 ## Scaling Nodes
 

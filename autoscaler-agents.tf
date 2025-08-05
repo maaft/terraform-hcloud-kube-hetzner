@@ -113,7 +113,8 @@ data "cloudinit_config" "autoscaler_config" {
         sshAuthorizedKeys = concat([var.ssh_public_key], var.ssh_additional_public_keys)
         k3s_config = yamlencode(merge(
           {
-            server = "https://${var.use_control_plane_lb ? hcloud_load_balancer_network.control_plane.*.ip[0] : module.control_planes[keys(module.control_planes)[0]].private_ipv4_address}:6443"
+            # Use custom networking IPs when available
+            server = "https://${local.first_control_plane_k3s_ip}:6443"
             token  = local.k3s_token
             # Kubelet arg precedence (last wins): local.kubelet_arg > nodepool.kubelet_args > k3s_global_kubelet_args > k3s_autoscaler_kubelet_args
             kubelet-arg   = concat(local.kubelet_arg, var.autoscaler_nodepools[count.index].kubelet_args, var.k3s_global_kubelet_args, var.k3s_autoscaler_kubelet_args)
@@ -129,6 +130,16 @@ data "cloudinit_config" "autoscaler_config" {
         cloudinit_write_files_common = local.cloudinit_write_files_common
         cloudinit_runcmd_common      = local.cloudinit_runcmd_common,
         private_network_only         = var.autoscaler_disable_ipv4 && var.autoscaler_disable_ipv6,
+
+        # Custom networking configuration
+        custom_networking_autoscaler_enabled     = var.custom_networking.enabled && var.custom_networking.autoscaler_nodes.enabled
+        custom_networking_autoscaler_script      = var.custom_networking.autoscaler_nodes.script_content
+        custom_networking_autoscaler_output_file = var.custom_networking.autoscaler_nodes.output_file
+        cluster_name                             = var.cluster_name
+        network_region                           = var.network_region
+        original_network_cidr                    = var.network_ipv4_cidr
+        cluster_ipv4_cidr                        = var.cluster_ipv4_cidr
+        service_ipv4_cidr                        = var.service_ipv4_cidr
       }
     )
   }
@@ -153,7 +164,8 @@ data "cloudinit_config" "autoscaler_legacy_config" {
         sshAuthorizedKeys = concat([var.ssh_public_key], var.ssh_additional_public_keys)
         k3s_config = yamlencode(merge(
           {
-            server        = "https://${var.use_control_plane_lb ? hcloud_load_balancer_network.control_plane.*.ip[0] : module.control_planes[keys(module.control_planes)[0]].private_ipv4_address}:6443"
+            # Use custom networking IPs when available
+            server        = "https://${local.first_control_plane_k3s_ip}:6443"
             token         = local.k3s_token
             kubelet-arg   = local.kubelet_arg
             flannel-iface = local.flannel_iface
@@ -168,6 +180,16 @@ data "cloudinit_config" "autoscaler_legacy_config" {
         cloudinit_write_files_common = local.cloudinit_write_files_common
         cloudinit_runcmd_common      = local.cloudinit_runcmd_common,
         private_network_only         = var.autoscaler_disable_ipv4 && var.autoscaler_disable_ipv6,
+
+        # Custom networking configuration
+        custom_networking_autoscaler_enabled     = var.custom_networking.enabled && var.custom_networking.autoscaler_nodes.enabled
+        custom_networking_autoscaler_script      = var.custom_networking.autoscaler_nodes.script_content
+        custom_networking_autoscaler_output_file = var.custom_networking.autoscaler_nodes.output_file
+        cluster_name                             = var.cluster_name
+        network_region                           = var.network_region
+        original_network_cidr                    = var.network_ipv4_cidr
+        cluster_ipv4_cidr                        = var.cluster_ipv4_cidr
+        service_ipv4_cidr                        = var.service_ipv4_cidr
       }
     )
   }
